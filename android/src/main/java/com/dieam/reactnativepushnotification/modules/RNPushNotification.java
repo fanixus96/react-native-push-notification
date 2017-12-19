@@ -32,8 +32,6 @@ public class RNPushNotification extends ReactContextBaseJavaModule implements Ac
     private final Random mRandomNumberGenerator = new Random(System.currentTimeMillis());
     private RNPushNotificationJsDelivery mJsDelivery;
 
-    private Bundle savedBundle = null;
-
     public RNPushNotification(ReactApplicationContext reactContext) {
         super(reactContext);
 
@@ -61,18 +59,16 @@ public class RNPushNotification extends ReactContextBaseJavaModule implements Ac
     }
 
     public void onNewIntent(Intent intent) {
-        if(intent.hasExtra("google.message_id")){
-            Bundle bundle = intent.getExtras();
-            bundle.putBoolean("foreground", false);
-            intent.putExtra("notification", bundle);
-            this.savedBundle =  bundle;
-            mJsDelivery.notifyNotification(bundle);
+        Bundle bundle;
+        if (intent.hasExtra("google.message_id")) {
+            bundle = intent.getExtras();
+            bundle.putBoolean("userInteraction", true);
+        } else {
+            bundle = intent.getBundleExtra("notification");
         }
 
-        if (intent.hasExtra("notification")) {
-            Bundle bundle = intent.getBundleExtra("notification");
+        if (bundle != null) {
             bundle.putBoolean("foreground", false);
-            intent.putExtra("notification", bundle);
             mJsDelivery.notifyNotification(bundle);
         }
     }
@@ -151,17 +147,13 @@ public class RNPushNotification extends ReactContextBaseJavaModule implements Ac
         Activity activity = getCurrentActivity();
         if (activity != null) {
             Intent intent = activity.getIntent();
-            Bundle bundle = null;
+            Bundle bundle;
 
-            if (intent.hasExtra("notification")) {
-                bundle = intent.getBundleExtra("notification");
-            } else if (intent.hasExtra("google.message_id")) {
+            if (intent.hasExtra("google.message_id")) {
                 bundle = intent.getExtras();
-            }
-
-            if (this.savedBundle != null){
-                bundle = savedBundle;
-                this.savedBundle = null;
+                bundle.putBoolean("userInteraction", true);
+            } else {
+                bundle = intent.getBundleExtra("notification");
             }
 
             if (bundle != null) {
