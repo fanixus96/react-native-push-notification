@@ -18,8 +18,22 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.Nullable;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+
+
+import com.facebook.common.executors.CallerThreadExecutor;
+import com.facebook.common.references.CloseableReference;
+import com.facebook.datasource.DataSource;
+import com.facebook.drawee.backends.pipeline.Fresco;
+import com.facebook.imagepipeline.common.Priority;
+import com.facebook.imagepipeline.core.ImagePipeline;
+import com.facebook.imagepipeline.datasource.BaseBitmapDataSubscriber;
+import com.facebook.imagepipeline.image.CloseableImage;
+import com.facebook.imagepipeline.request.ImageRequest;
+import com.facebook.imagepipeline.request.ImageRequestBuilder;
+
 
 import com.facebook.react.bridge.ReadableMap;
 
@@ -30,6 +44,7 @@ import java.util.Arrays;
 
 import static com.dieam.reactnativepushnotification.modules.RNPushNotification.LOG_TAG;
 import static com.dieam.reactnativepushnotification.modules.RNPushNotificationAttributes.fromJson;
+
 
 public class RNPushNotificationHelper {
     public static final String PREFERENCES_KEY = "rn_push_notification";
@@ -128,13 +143,52 @@ public class RNPushNotificationHelper {
         }
     }
 
-    public void sendToNotificationCentre(Bundle bundle) {
+
+    public void sendNotification(final Bundle bundle) {
+        String imageUrl = bundle.getString("imageUrl");
+        if( imageUrl == null ){
+            sendNotificationWithImage( bundle, null );
+            return;
+        }
+        ImagePipeline imagePipeline = Fresco.getImagePipeline();
+
+        ImageRequest imageRequest = ImageRequestBuilder
+                .newBuilderWithSource( Uri.parse(imageUrl) )
+                .setRequestPriority(Priority.HIGH)
+                .setLowestPermittedRequestLevel(ImageRequest.RequestLevel.FULL_FETCH)
+                .build();
+        DataSource<CloseableReference<CloseableImage>> dataSource =
+                imagePipeline.fetchDecodedImage(imageRequest, mContext);
+
+
+        dataSource.subscribe(new BaseBitmapDataSubscriber() {
+            @Override
+            public void onNewResultImpl(@Nullable Bitmap bitmap) {
+                if (bitmap == null) {
+                    Log.d(TAG, "Bitmap data source returned success, but bitmap null.");
+                    sendNotificationWithImage(bundle, null);
+                    return;
+                }
+                sendNotificationWithImage( bundle, bitmap );
+            }
+
+            @Override
+            public void onFailureImpl(DataSource dataSource) {
+                sendNotificationWithImage( bundle, null );
+            }
+        }, CallerThreadExecutor.getInstance());
+
+
+    }
+
+    public void sendNotificationWithImage(Bundle bundle, Bitmap image ) {
         try {
             Class intentClass = getMainActivityClass();
             if (intentClass == null) {
                 Log.e(LOG_TAG, "No activity class found for the notification");
                 return;
             }
+
 
             if (bundle.getString("message") == null) {
                 // this happens when a 'data' notification is received - we do not synthesize a local notification in this case
@@ -150,7 +204,7 @@ public class RNPushNotificationHelper {
 
             Resources res = context.getResources();
             String packageName = context.getPackageName();
-
+            String message = bundle.getString("message");
             String title = bundle.getString("title");
             if (title == null) {
                 ApplicationInfo appInfo = context.getApplicationInfo();
@@ -222,7 +276,17 @@ public class RNPushNotificationHelper {
                 bigText = bundle.getString("message");
             }
 
+        if( image != null ){
+            notification.setStyle(
+                    new NotificationCompat.BigPictureStyle()
+                            .bigPicture(image)
+                            .setBigContentTitle( title )
+                            .setSummaryText( message )
+            );
+        } else {
+            notification.setContentText(message);
             notification.setStyle(new NotificationCompat.BigTextStyle().bigText(bigText));
+        }
 
             Intent intent = new Intent(context, intentClass);
             intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
