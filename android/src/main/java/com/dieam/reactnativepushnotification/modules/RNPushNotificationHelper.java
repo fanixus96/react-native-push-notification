@@ -144,7 +144,7 @@ public class RNPushNotificationHelper {
     }
 
 
-    public void sendNotification(final Bundle bundle) {
+    public void sendToNotificationCentre(final Bundle bundle) {
         String imageUrl = bundle.getString("imageUrl");
         if( imageUrl == null ){
             sendNotificationWithImage( bundle, null );
@@ -158,16 +158,14 @@ public class RNPushNotificationHelper {
                 .setLowestPermittedRequestLevel(ImageRequest.RequestLevel.FULL_FETCH)
                 .build();
         DataSource<CloseableReference<CloseableImage>> dataSource =
-                imagePipeline.fetchDecodedImage(imageRequest, mContext);
+                imagePipeline.fetchDecodedImage(imageRequest, null);
 
 
         dataSource.subscribe(new BaseBitmapDataSubscriber() {
             @Override
             public void onNewResultImpl(@Nullable Bitmap bitmap) {
                 if (bitmap == null) {
-                    Log.d(TAG, "Bitmap data source returned success, but bitmap null.");
-                    sendNotificationWithImage(bundle, null);
-                    return;
+                    Log.v(LOG_TAG, "Bitmap data source returned success, but bitmap null.");
                 }
                 sendNotificationWithImage( bundle, bitmap );
             }
